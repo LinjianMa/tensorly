@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+import time
 
 import tensorly as tl
 from ..random import check_random_state
@@ -108,7 +109,7 @@ def parafac(tensor, rank, n_iter_max=100, init='svd', svd='numpy_svd',\
             non_negative=False,\
             sparsity = None,\
             l2_reg = 0,  mask=None,\
-            cvg_criterion = 'abs_rec_error'):
+            cvg_criterion = 'abs_rec_error', ret_time=False):
     """CANDECOMP/PARAFAC decomposition via alternating least squares (ALS)
     Computes a rank-`rank` decomposition of `tensor` [1]_ such that,
 
@@ -189,13 +190,17 @@ def parafac(tensor, rank, n_iter_max=100, init='svd', svd='numpy_svd',\
             sparsity = int(sparsity * np.prod(tensor.shape))
         else:
             sparsity = int(sparsity)
-            
+
+    sweep_times = []
     for iteration in range(n_iter_max):
         if orthogonalise and iteration <= orthogonalise:
             factors = [tl.qr(f)[0] if min(tl.shape(f)) >= rank else f for i, f in enumerate(factors)]
 
         if verbose > 1:
             print("Starting iteration", iteration + 1)
+
+        t0 = time.time()
+
         for mode in range(tl.ndim(tensor)):
             if verbose > 1:
                 print("Mode", mode, "of", tl.ndim(tensor))
@@ -221,6 +226,8 @@ def parafac(tensor, rank, n_iter_max=100, init='svd', svd='numpy_svd',\
                 factor = factor/(tl.reshape(weights, (1, -1)))
 
             factors[mode] = factor
+
+        sweep_times.append(time.time() - t0)
 
         if tol:
             if sparsity:
@@ -272,6 +279,8 @@ def parafac(tensor, rank, n_iter_max=100, init='svd', svd='numpy_svd',\
 
     if return_errors:
         return kruskal_tensor, rec_errors
+    elif ret_time:
+        return kruskal_tensor, sweep_times
     else:
         return kruskal_tensor
     
