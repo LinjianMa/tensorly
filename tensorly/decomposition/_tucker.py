@@ -4,6 +4,7 @@ from ..tenalg import multi_mode_dot, mode_dot
 from ..tucker_tensor import tucker_to_tensor
 from ..random import check_random_state
 from math import sqrt
+import time
 
 import warnings
 
@@ -13,7 +14,7 @@ import warnings
 
 
 def partial_tucker(tensor, modes, rank=None, n_iter_max=100, init='svd', tol=10e-5,
-                   svd='numpy_svd', random_state=None, verbose=False, ranks=None):
+                   svd='numpy_svd', random_state=None, verbose=False, ranks=None, return_time=False):
     """Partial tucker decomposition via Higher Order Orthogonal Iteration (HOI)
 
         Decomposes `tensor` into a Tucker decomposition exclusively along the provided modes.
@@ -84,13 +85,20 @@ def partial_tucker(tensor, modes, rank=None, n_iter_max=100, init='svd', tol=10e
     rec_errors = []
     norm_tensor = tl.norm(tensor, 2)
 
+    sweep_times = []
+
     for iteration in range(n_iter_max):
+
+        t0 = time.time()
+
         for index, mode in enumerate(modes):
             core_approximation = multi_mode_dot(tensor, factors, modes=modes, skip=index, transpose=True)
             eigenvecs, _, _ = svd_fun(unfold(core_approximation, mode), n_eigenvecs=rank[index], random_state=random_state)
             factors[index] = eigenvecs
 
         core = multi_mode_dot(tensor, factors, modes=modes, transpose=True)
+
+        sweep_times.append(time.time() - t0)
 
         # The factors are orthonormal and therefore do not affect the reconstructed tensor's norm
         rec_error = sqrt(abs(norm_tensor**2 - tl.norm(core, 2)**2)) / norm_tensor
@@ -106,11 +114,14 @@ def partial_tucker(tensor, modes, rank=None, n_iter_max=100, init='svd', tol=10e
                     print('converged in {} iterations.'.format(iteration))
                 break
 
-    return core, factors
+    if return_time:
+        return core, factors, sweep_times
+    else:   
+        return core, factors
 
 
 def tucker(tensor, rank=None, ranks=None, n_iter_max=100, init='svd',
-           svd='numpy_svd', tol=10e-5, random_state=None, verbose=False):
+           svd='numpy_svd', tol=10e-5, random_state=None, verbose=False, return_time=False):
     """Tucker decomposition via Higher Order Orthogonal Iteration (HOI)
 
         Decomposes `tensor` into a Tucker decomposition:
@@ -151,7 +162,7 @@ def tucker(tensor, rank=None, ranks=None, n_iter_max=100, init='svd',
     """
     modes = list(range(tl.ndim(tensor)))
     return partial_tucker(tensor, modes, rank=rank, ranks=ranks, n_iter_max=n_iter_max, init=init,
-                          svd=svd, tol=tol, random_state=random_state, verbose=verbose)
+                          svd=svd, tol=tol, random_state=random_state, verbose=verbose, return_time=return_time)
 
 
 def non_negative_tucker(tensor, rank, n_iter_max=10, init='svd', tol=10e-5,
