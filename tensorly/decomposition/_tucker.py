@@ -89,16 +89,17 @@ def partial_tucker(tensor, modes, rank=None, n_iter_max=100, init='svd', tol=10e
 
     for iteration in range(n_iter_max):
 
-        t0 = time.time()
-
+        dt = 0.
         for index, mode in enumerate(modes):
+            t0 = time.time()
             core_approximation = multi_mode_dot(tensor, factors, modes=modes, skip=index, transpose=True)
+            dt += time.time() - t0
             eigenvecs, _, _ = svd_fun(unfold(core_approximation, mode), n_eigenvecs=rank[index], random_state=random_state)
             factors[index] = eigenvecs
 
         core = multi_mode_dot(tensor, factors, modes=modes, transpose=True)
 
-        sweep_times.append(time.time() - t0)
+        sweep_times.append(dt)
 
         # The factors are orthonormal and therefore do not affect the reconstructed tensor's norm
         rec_error = sqrt(abs(norm_tensor**2 - tl.norm(core, 2)**2)) / norm_tensor
